@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" role="img" aria-label="Amal and Aparna">
+  <rect width="16" height="16" rx="3" fill="#6E2430"/>
+  <rect x="0.5" y="0.5" width="15" height="15" rx="2.5" fill="none" stroke="#A8844A" stroke-width="1"/>
+  <g fill="none" stroke="#F3EBE0" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M2.05 12.55 L4.45 3.85 L6.85 12.55" stroke-width="1.5"/>
+    <path d="M3.2 9.3 H5.7" stroke-width="1.35"/>
+    <path d="M9.15 12.55 L11.55 3.85 L13.95 12.55" stroke-width="1.5"/>
+    <path d="M10.3 9.3 H12.8" stroke-width="1.35"/>
+  </g>
+  <path fill="#A8844A" d="M8 6.2 L8.95 8.2 L8 10.2 L7.05 8.2Z"/>
+</svg>
