@@ -1,13 +1,18 @@
-import { useMemo, useRef, useState } from "react";
-import { ChevronDown, ImagePlus, MapPin, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Check, ChevronDown, Copy, ImagePlus, MapPin, Share2, Trash2 } from "lucide-react";
 import { EditableImage, EditableText } from "@/components/album/editable";
+import { EditBar, Lightbox, LoginDialog } from "@/components/album/edit-shell";
 import {
-  EditBar,
-  Lightbox,
-  LoginDialog,
-} from "@/components/album/edit-shell";
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import { Countdown } from "@/components/album/countdown";
 import { GoldRule, KasavuFrame, Monogram } from "@/components/album/ornaments";
+import { UserButton } from "@/lib/auth/gates";
 import type { AlbumData, AlbumPhoto } from "@/lib/album";
 import { useEditor } from "@/lib/editor-store";
 import { readImageAsJpeg } from "@/lib/utils";
@@ -23,27 +28,19 @@ export function AlbumPage({ initial }: { initial: AlbumData }) {
   const [album, setAlbum] = useState<AlbumData>(initial);
   const [saved, setSaved] = useState<AlbumData>(initial);
   const [loginOpen, setLoginOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   const [lightbox, setLightbox] = useState<number | null>(null);
   const isEditing = useEditor((s) => s.isEditing);
-  const dirty = useMemo(
-    () => JSON.stringify(album) !== JSON.stringify(saved),
-    [album, saved],
-  );
+  const dirty = useMemo(() => JSON.stringify(album) !== JSON.stringify(saved), [album, saved]);
 
   function patch(partial: Partial<AlbumData>) {
     setAlbum((current) => ({ ...current, ...partial }));
   }
 
-  function updatePhoto(
-    list: "photos" | "inviteImages",
-    id: string,
-    next: Partial<AlbumPhoto>,
-  ) {
+  function updatePhoto(list: "photos" | "inviteImages", id: string, next: Partial<AlbumPhoto>) {
     setAlbum((current) => ({
       ...current,
-      [list]: current[list].map((photo) =>
-        photo.id === id ? { ...photo, ...next } : photo,
-      ),
+      [list]: current[list].map((photo) => (photo.id === id ? { ...photo, ...next } : photo)),
     }));
   }
 
@@ -82,6 +79,18 @@ export function AlbumPage({ initial }: { initial: AlbumData }) {
               </li>
             ))}
           </ul>
+          <button
+            type="button"
+            onClick={() => setShareOpen(true)}
+            className="inline-flex h-11 shrink-0 items-center gap-2 rounded-md px-2 text-sm text-wine transition-colors hover:bg-paper-deep"
+          >
+            <Share2 className="size-4" />
+            <span className="hidden md:inline">Share</span>
+            <span className="sr-only md:hidden">Share album</span>
+          </button>
+          <div className="hidden shrink-0 border-l border-gold/20 pl-3 sm:block">
+            <UserButton />
+          </div>
         </nav>
       </header>
 
@@ -189,9 +198,7 @@ export function AlbumPage({ initial }: { initial: AlbumData }) {
                   <EditableText
                     as="p"
                     value={photo.caption}
-                    onChange={(caption) =>
-                      updatePhoto("photos", photo.id, { caption })
-                    }
+                    onChange={(caption) => updatePhoto("photos", photo.id, { caption })}
                     className="font-display text-base text-ink-soft italic"
                   />
                   {isEditing ? (
@@ -214,9 +221,7 @@ export function AlbumPage({ initial }: { initial: AlbumData }) {
             ))}
           </div>
           {isEditing ? (
-            <AddPhotoButton
-              onAdd={(photo) => patch({ photos: [...album.photos, photo] })}
-            />
+            <AddPhotoButton onAdd={(photo) => patch({ photos: [...album.photos, photo] })} />
           ) : null}
         </section>
 
@@ -256,9 +261,7 @@ export function AlbumPage({ initial }: { initial: AlbumData }) {
                     <EditableImage
                       src={photo.src}
                       alt={photo.alt}
-                      onChange={(src) =>
-                        updatePhoto("inviteImages", photo.id, { src })
-                      }
+                      onChange={(src) => updatePhoto("inviteImages", photo.id, { src })}
                       imgClassName="aspect-portrait w-full object-cover"
                     />
                   </div>
@@ -299,9 +302,7 @@ export function AlbumPage({ initial }: { initial: AlbumData }) {
                   <input
                     type="date"
                     value={album.weddingDateIso}
-                    onChange={(event) =>
-                      patch({ weddingDateIso: event.target.value })
-                    }
+                    onChange={(event) => patch({ weddingDateIso: event.target.value })}
                     className="h-11 rounded-md border border-gold/30 bg-paper px-3 text-sm text-ink"
                   />
                 </label>
@@ -351,11 +352,7 @@ export function AlbumPage({ initial }: { initial: AlbumData }) {
       </main>
 
       <footer className="border-t border-gold/20 px-6 py-12 text-center">
-        <Monogram
-          bride={album.brideName}
-          groom={album.groomName}
-          className="mb-4"
-        />
+        <Monogram bride={album.brideName} groom={album.groomName} className="mb-4" />
         <EditableText
           as="p"
           value={album.footerLine}
@@ -372,6 +369,11 @@ export function AlbumPage({ initial }: { initial: AlbumData }) {
         onOpenLogin={() => setLoginOpen(true)}
       />
       <LoginDialog open={loginOpen} onOpenChange={setLoginOpen} />
+      <ShareDialog
+        open={shareOpen}
+        onOpenChange={setShareOpen}
+        albumName={`${album.brideName} & ${album.groomName}`}
+      />
       <Lightbox
         photos={allLightboxPhotos}
         index={lightbox}
@@ -379,6 +381,72 @@ export function AlbumPage({ initial }: { initial: AlbumData }) {
         onIndex={setLightbox}
       />
     </div>
+  );
+}
+
+function ShareDialog({
+  open,
+  onOpenChange,
+  albumName,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  albumName: string;
+}) {
+  const [copied, setCopied] = useState(false);
+  const [error, setError] = useState("");
+  const [shareUrl, setShareUrl] = useState("");
+
+  useEffect(() => {
+    if (open) setShareUrl(window.location.href);
+  }, [open]);
+
+  async function share() {
+    setError("");
+    const url = shareUrl || window.location.href;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: `${albumName} — family album`, url });
+        return;
+      }
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2200);
+    } catch {
+      setError("Unable to copy the link. Select it below and copy it manually.");
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Share this family album</DialogTitle>
+          <DialogDescription>
+            Anyone with this link can view the album. Family members can sign in with their own
+            account to make edits.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="mt-5 rounded-lg border border-gold/25 bg-paper px-3 py-3 text-sm text-ink-soft">
+          <input
+            aria-label="Shareable album link"
+            readOnly
+            value={shareUrl}
+            onFocus={(event) => event.currentTarget.select()}
+            className="w-full bg-transparent outline-none"
+          />
+        </div>
+        <Button type="button" className="mt-4 w-full" onClick={() => void share()}>
+          {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
+          {copied ? "Link copied" : "Copy share link"}
+        </Button>
+        {error ? (
+          <p role="alert" className="mt-3 text-sm text-wine">
+            {error}
+          </p>
+        ) : null}
+      </DialogContent>
+    </Dialog>
   );
 }
 
