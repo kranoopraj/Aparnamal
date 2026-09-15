@@ -1,9 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { DEFAULT_ALBUM, type AlbumData } from "@/lib/album";
-
-const EDITOR_USERNAME = "Aparna";
-const EDITOR_PASSWORD = "Amal";
+import { authMiddleware } from "@/lib/auth/middleware";
 
 const photoSchema = z.object({
   id: z.string().min(1).max(80),
@@ -45,10 +43,6 @@ const albumSchema = z.object({
   footerLine: z.string().max(160),
 });
 
-function credentialsOk(username: string, password: string) {
-  return username === EDITOR_USERNAME && password === EDITOR_PASSWORD;
-}
-
 function asAlbum(payload: unknown): AlbumData {
   try {
     const raw = typeof payload === "string" ? JSON.parse(payload) : payload;
@@ -60,57 +54,37 @@ function asAlbum(payload: unknown): AlbumData {
   }
 }
 
-export const getAlbum = createServerFn({ method: "GET" }).handler(
-  async (): Promise<AlbumData> => {
-    try {
-      const { getSql } = await import("@/lib/db");
-      const sql = await getSql();
-      const rows = await sql.query<{ payload: unknown }>(
-        "select payload from album_content where id = $1",
-        ["main"],
-      );
-      if (!rows[0]) return DEFAULT_ALBUM;
-      return asAlbum(rows[0].payload);
-    } catch {
-      return DEFAULT_ALBUM;
-    }
-  },
-);
-
-export const verifyEditor = createServerFn({ method: "POST" })
-  .validator(
-    z.object({
-      username: z.string().min(1).max(80),
-      password: z.string().min(1).max(80),
-    }),
-  )
-  .handler(async ({ data }) => {
-    if (!credentialsOk(data.username, data.password)) {
-      throw new Error("Those details do not match.");
-    }
-    return { ok: true as const };
-  });
+export const getAlbum = createServerFn({ method: "GET" }).handler(async (): Promise<AlbumData> => {
+  try {
+    const { getSql } = await import("@/lib/db");
+    const sql = await getSql();
+    const rows = await sql.query<{ payload: unknown }>(
+      "select payload from album_content where id = $1",
+      ["main"],
+    );
+    if (!rows[0]) return DEFAULT_ALBUM;
+    return asAlbum(rows[0].payload);
+  } catch {
+    return DEFAULT_ALBUM;
+  }
+});
 
 export const saveAlbum = createServerFn({ method: "POST" })
   .validator(
     z.object({
-      username: z.string().min(1).max(80),
-      password: z.string().min(1).max(80),
       album: albumSchema,
     }),
   )
-  .handler(async ({ data }) => {
-    if (!credentialsOk(data.username, data.password)) {
-      throw new Error("Those details do not match.");
-    }
+  .middleware([authMiddleware])
+  .handler(async ({ context, data }) => {
     const { getSql } = await import("@/lib/db");
     const sql = await getSql();
     await sql.query(
-      `insert into album_content (id, payload, updated_at)
-       values ($1, $2::jsonb, now())
+      `insert into album_content (id, payload, updated_by, updated_at)
+       values ($1, $2::jsonb, $3, now())
        on conflict (id) do update
-       set payload = excluded.payload, updated_at = now()`,
-      ["main", JSON.stringify(data.album)],
+       set payload = excluded.payload, updated_by = excluded.updated_by, updated_at = now()`,
+      ["main", JSON.stringify(data.album), context.userId],
     );
     return { ok: true as const };
   });
